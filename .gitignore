@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+dist/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+ingest/cordata.zip
+ingest/__pycache__/
+ingest/*.pyc
+.vercel
+ingest/cordata*.txt

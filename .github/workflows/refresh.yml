@@ -1,0 +1,30 @@
+name: Refresh Sunbiz data
+
+on:
+  schedule:
+    # Weekly, Mondays 06:00 UTC.  Sunbiz publishes quarterly; weekly is overkill but cheap.
+    - cron: "0 6 * * 1"
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          cd ingest
+          pip install -r requirements.txt
+
+      - name: Run ingest
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          cd ingest
+          python ingest.py

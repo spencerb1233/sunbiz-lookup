@@ -1,0 +1,53 @@
+@import url("https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --paper: #faf7f1;
+  --ink: #16202e;
+  --rule: #d9d2c2;
+  --accent: #b8552e;
+  --muted: #6b6457;
+}
+
+html, body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--paper);
+}
+
+/* Tiny utilities for hairline rules and uppercase labels */
+.label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.rule {
+  border-color: var(--rule);
+}
+
+/* File input cosmetics */
+input[type="file"]::file-selector-button {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 8px 14px;
+  margin-right: 14px;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button:hover { background: var(--accent); border-color: var(--accent); }
