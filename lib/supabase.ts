@@ -86,3 +86,33 @@ export async function findEntities(
   if (fallback.error) throw new Error(fallback.error.message);
   return (fallback.data || []) as EntityRow[];
 }
+
+/**
+ * Bulk exact-match lookup. Takes many normalized names, returns a map of
+ * normalized name -> best entity. One query instead of N.
+ */
+export async function findEntitiesBulk(
+  normalizedNames: string[],
+): Promise<Map<string, EntityRow>> {
+  const result = new Map<string, EntityRow>();
+  const unique = Array.from(new Set(normalizedNames.filter(Boolean)));
+  if (unique.length === 0) return result;
+
+  const sb = supabase();
+  const CHUNK = 200;
+  for (let i = 0; i < unique.length; i += CHUNK) {
+    const slice = unique.slice(i, i + CHUNK);
+    const { data, error } = await sb
+      .from("entities")
+      .select("*")
+      .in("corp_name_norm", slice);
+    if (error) throw new Error(error.message);
+    for (const row of (data || []) as EntityRow[]) {
+      // First match wins per normalized name.
+      if (!result.has(row.corp_name_norm)) {
+        result.set(row.corp_name_norm, row);
+      }
+    }
+  }
+  return result;
+}
