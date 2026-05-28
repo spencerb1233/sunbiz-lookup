@@ -27,12 +27,34 @@ function detectNameColumn(headers: string[]): string | null {
 const ENTITY_HINT = /\b(L\.?L\.?C\.?|INC\.?|CORP\.?|LP|LLP|LTD|TRUST|HOLDINGS|COMPANY)\b/i;
 const looksLikeEntity = (name: string) => ENTITY_HINT.test(name || "");
 
+function titleCase(s: string): string {
+  return s.toLowerCase()
+    .replace(/\b([a-z])/g, (m) => m.toUpperCase())
+    .replace(/\bMc([a-z])/g, (_m, c) => "Mc" + c.toUpperCase())
+    .replace(/\bO'([a-z])/g, (_m, c) => "O'" + c.toUpperCase());
+}
+
+// Sunbiz stores officer names as "LAST<padding>FIRST<padding>MIDDLE" in a
+// fixed-width field. Split on the padding to get "First Last", drop middle.
+function cleanOfficerName(raw: string | null): { full: string; first: string; last: string } {
+  if (!raw) return { full: "", first: "", last: "" };
+  let parts = raw.trim().split(/\s{2,}/).filter(Boolean);
+  if (parts.length < 2) parts = raw.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { full: "", first: "", last: "" };
+  let last = (parts[0] || "").replace(/[,]+$/, "").trim();
+  let first = (parts[1] || "").split(/\s+/)[0] || "";
+  first = first.replace(/(JR|SR|II|III|IV)\.?$/i, "").trim();
+  const F = titleCase(first), L = titleCase(last);
+  return { full: F && L ? `${F} ${L}` : F || L, first: F, last: L };
+}
+
 function flatten(rec: EntityRow | null) {
   if (!rec) {
     return {
       sb_match: "", sb_status: "", sb_filing_type: "", sb_corp_name: "",
-      sb_mail_address: "", sb_principal_address: "", sb_officer_1: "",
-      sb_officer_1_address: "", sb_officer_2: "", sb_officer_2_address: "",
+      sb_mail_address: "", sb_principal_address: "",
+      sb_officer_1: "", sb_officer_1_first: "", sb_officer_1_address: "",
+      sb_officer_2: "", sb_officer_2_first: "", sb_officer_2_address: "",
       sb_corp_number: "",
     };
   }
@@ -44,6 +66,8 @@ function flatten(rec: EntityRow | null) {
     .filter(Boolean).join(", ");
   const oa = (a: string|null, c: string|null, s: string|null, z: string|null) =>
     [a, [c, s, z].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const o1 = cleanOfficerName(rec.officer_1_name);
+  const o2 = cleanOfficerName(rec.officer_2_name);
   return {
     sb_match: "yes",
     sb_status: rec.status || "",
@@ -51,9 +75,11 @@ function flatten(rec: EntityRow | null) {
     sb_corp_name: rec.corp_name || "",
     sb_mail_address: mail,
     sb_principal_address: principal,
-    sb_officer_1: (rec.officer_1_name || "").replace(/\s+/g, " ").trim(),
+    sb_officer_1: o1.full,
+    sb_officer_1_first: o1.first,
     sb_officer_1_address: oa(rec.officer_1_addr, rec.officer_1_city, rec.officer_1_state, rec.officer_1_zip),
-    sb_officer_2: (rec.officer_2_name || "").replace(/\s+/g, " ").trim(),
+    sb_officer_2: o2.full,
+    sb_officer_2_first: o2.first,
     sb_officer_2_address: oa(rec.officer_2_addr, rec.officer_2_city, rec.officer_2_state, rec.officer_2_zip),
     sb_corp_number: rec.corp_number || "",
   };
@@ -78,17 +104,14 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // 1. Collect normalized names for entity rows only.
     const normPerRow: (string | null)[] = rows.map((row) => {
       const raw = (row[nameCol] || "").toString().trim();
       return raw && looksLikeEntity(raw) ? normalizeName(raw) : null;
     });
 
-    // 2. ONE bulk query for all of them.
     const toLookup = normPerRow.filter((n): n is string => !!n);
     const matches = await findEntitiesBulk(toLookup);
 
-    // 3. Stitch results back onto rows.
     let matched = 0, attempted = 0, skipped = 0;
     const outRows = rows.map((row, i) => {
       const norm = normPerRow[i];
